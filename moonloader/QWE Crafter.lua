@@ -1,15 +1,15 @@
--- QWE Crafter вЂ” Р·Р°РіСЂСѓР·С‡РёРє (РѕС‚РєСЂС‹С‚Р°СЏ С‡Р°СЃС‚СЊ).
--- Р—РґРµСЃСЊ РќР•Рў Р»РѕРіРёРєРё РІРµСЂСЃС‚Р°РєР°. Р’РµСЃСЊ РєРѕРґ СЃРєСЂРёРїС‚Р° Р»РµР¶РёС‚ РІ qwe_crafter_core.dat
--- (СѓСЂРµР·Р°РЅРЅС‹Р№ Р±Р°Р№С‚РєРѕРґ LuaJIT), РїРѕСЌС‚РѕРјСѓ РёРіСЂРѕРєРё РЅРµ РјРѕРіСѓС‚ РµРіРѕ РїСЂРѕС‡РёС‚Р°С‚СЊ РёР»Рё РёР·РјРµРЅРёС‚СЊ.
+-- QWE Crafter — загрузчик (открытая часть).
+-- Здесь НЕТ логики верстака. Весь код скрипта лежит в qwe_crafter_core.dat
+-- (урезанный байткод LuaJIT), поэтому игроки не могут его прочитать или изменить.
 --
---  * DEV-СЃР±РѕСЂРєР° (РџРљ Р°РІС‚РѕСЂР°): РµСЃР»Рё СЂСЏРґРѕРј Р»РµР¶РёС‚ РёСЃС…РѕРґРЅРёРє "qwe_crafter_core.src",
---    Р·Р°РіСЂСѓР·С‡РёРє РїСЂРё РєР°Р¶РґРѕРј Р·Р°РїСѓСЃРєРµ РєРѕРјРїРёР»РёСЂСѓРµС‚ РµРіРѕ РІ СѓСЂРµР·Р°РЅРЅС‹Р№ Р±Р°Р№С‚РєРѕРґ
---    "qwe_crafter_core.dat" Рё Р·Р°РїСѓСЃРєР°РµС‚ СЏРґСЂРѕ. РћР±РЅРѕРІР»РµРЅРёРµ РІ dev РЅРµ СЃС‚Р°РІРёС‚СЃСЏ,
---    РЅРѕ РїСЂРѕРІРµСЂРєР° РІРµСЂСЃРёРё СЂР°Р±РѕС‚Р°РµС‚ (РІРёРґРЅРѕ, РµСЃС‚СЊ Р»Рё РЅР° GitHub РЅРѕРІРµРµ).
---  * RELEASE-СЃР±РѕСЂРєР° (РёРіСЂРѕРєРё): РїРѕСЃС‚Р°РІР»СЏРµС‚СЃСЏ С‚РѕР»СЊРєРѕ "qwe_crafter_core.dat".
---    Р—Р°РіСЂСѓР·С‡РёРє Р·Р°РіСЂСѓР¶Р°РµС‚ РµРіРѕ Рё СЃР°Рј РѕР±РЅРѕРІР»СЏРµС‚ СЏРґСЂРѕ СЃ GitHub (version.json -> .dat).
+--  * DEV-сборка (ПК автора): если рядом лежит исходник "qwe_crafter_core.src",
+--    загрузчик при каждом запуске компилирует его в урезанный байткод
+--    "qwe_crafter_core.dat" и запускает ядро. Обновление в dev не ставится,
+--    но проверка версии работает (видно, есть ли на GitHub новее).
+--  * RELEASE-сборка (игроки): поставляется только "qwe_crafter_core.dat".
+--    Загрузчик загружает его и сам обновляет ядро с GitHub (version.json -> .dat).
 --
--- РЇРґСЂРѕ РѕР±С‰Р°РµС‚СЃСЏ СЃ Р·Р°РіСЂСѓР·С‡РёРєРѕРј С‡РµСЂРµР· РіР»РѕР±Р°Р»СЊРЅСѓСЋ С‚Р°Р±Р»РёС†Сѓ _G.QWE_CRAFTER_UPD.
+-- Ядро общается с загрузчиком через глобальную таблицу _G.QWE_CRAFTER_UPD.
 
 local REPO_RAW = 'https://raw.githubusercontent.com/thepleinairstudio/qwe-crafter/main/'
 
@@ -29,8 +29,8 @@ local function verNum(v)
 	return (tonumber(a) or 0) * 1000000 + (tonumber(b) or 0) * 1000 + (tonumber(c) or 0)
 end
 
--- РћР±С‰РёР№ РёРЅС‚РµСЂС„РµР№СЃ РґР»СЏ СЏРґСЂР°. РЇРґСЂРѕ С‡РёС‚Р°РµС‚ .code/.ver Рё РІС‹Р·С‹РІР°РµС‚ .check().
--- .code вЂ” РєРѕСЂРѕС‚РєРёР№ РєРѕРґ СЃРѕСЃС‚РѕСЏРЅРёСЏ, СЏРґСЂРѕ РїСЂРµРІСЂР°С‰Р°РµС‚ РµРіРѕ РІ СЃРІРѕР№ С‚РµРєСЃС‚.
+-- Общий интерфейс для ядра. Ядро читает .code/.ver и вызывает .check().
+-- .code — короткий код состояния, ядро превращает его в свой текст.
 local UPD = { busy = false, code = nil, ver = nil, dev = false }
 _G.QWE_CRAFTER_UPD = UPD
 local function setStatus(code, ver) UPD.code, UPD.ver = code, ver end
@@ -42,7 +42,8 @@ function UPD.check(manual, curVer)
 	downloadUrlToFile(REPO_RAW .. 'version.json?t=' .. os.time(), TMPJ, function(_, status)
 		if status ~= dlstatus.STATUS_ENDDOWNLOADDATA then return end
 		local s = readFile(TMPJ); os.remove(TMPJ)
-		local ok, j = pcall(decodeJson, s or '')
+		if not s or not s:find('{', 1, true) then UPD.busy = false; setStatus('neterr', curVer); return end
+		local ok, j = pcall(decodeJson, s)
 		if not ok or type(j) ~= 'table' or not j.version then
 			UPD.busy = false; setStatus('neterr', curVer); return
 		end
@@ -50,32 +51,37 @@ function UPD.check(manual, curVer)
 		if verNum(j.version) <= verNum(curVer) then
 			UPD.busy = false; setStatus('uptodate', curVer); return
 		end
-		-- Сѓ Р°РІС‚РѕСЂР° (dev) РЅРѕРІРѕРµ СЏРґСЂРѕ РЅРµ СЃС‚Р°РІРёРј вЂ” С‚РѕР»СЊРєРѕ СЃРѕРѕР±С‰Р°РµРј
+		-- у автора (dev) новое ядро не ставим — только сообщаем
 		if UPD.dev then UPD.busy = false; setStatus('devnewer', j.version); return end
 		setStatus('updating', j.version)
 		local coreName = j.core or 'moonloader/qwe_crafter_core.dat'
-		downloadUrlToFile(REPO_RAW .. coreName .. '?t=' .. os.time(), TMPD, function(_, st2)
-			if st2 ~= dlstatus.STATUS_ENDDOWNLOADDATA then return end
-			local bc = readFile(TMPD)
-			-- РїСЂРѕРІРµСЂРєР°: РґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Р±РѕР»СЊС€РѕР№ Рё РіСЂСѓР·РёС‚СЃСЏ РєР°Рє РІР°Р»РёРґРЅС‹Р№ С‡Р°РЅРє
-			local good = bc and #bc > 40000 and loadfile(TMPD) ~= nil
-			if not good then
-				os.remove(TMPD); UPD.busy = false; setStatus('baddata', j.version); return
-			end
-			if exists(DAT) then writeFile(DAT .. '.bak', readFile(DAT) or '') end
-			local okw = writeFile(DAT, bc)
-			os.remove(TMPD)
-			if not okw then UPD.busy = false; setStatus('writeerr', j.version); return end
-			setStatus('updated', j.version); UPD.busy = false
-			thisScript():reload()
+		-- второе скачивание нельзя запускать прямо из колбэка первого: moonloader падает
+		-- с «device or resource busy». Запускаем из отдельного потока.
+		lua_thread.create(function()
+			wait(200)
+			downloadUrlToFile(REPO_RAW .. coreName .. '?t=' .. os.time(), TMPD, function(_, st2)
+				if st2 ~= dlstatus.STATUS_ENDDOWNLOADDATA then return end
+				local bc = readFile(TMPD)
+				-- проверка: достаточно большой и грузится как валидный чанк
+				local good = bc and #bc > 40000 and loadfile(TMPD) ~= nil
+				if not good then
+					os.remove(TMPD); UPD.busy = false; setStatus('baddata', j.version); return
+				end
+				if exists(DAT) then writeFile(DAT .. '.bak', readFile(DAT) or '') end
+				local okw = writeFile(DAT, bc)
+				os.remove(TMPD)
+				if not okw then UPD.busy = false; setStatus('writeerr', j.version); return end
+				setStatus('updated', j.version); UPD.busy = false
+				lua_thread.create(function() wait(100); thisScript():reload() end)
+			end)
 		end)
 	end)
 end
 
--- ============== СЂРµСЃСѓСЂСЃС‹: РёРєРѕРЅРєРё Рё РЅР°Р·РІР°РЅРёСЏ РґРѕРєР°С‡РёРІР°СЋС‚СЃСЏ СЃ GitHub ==============
--- Р’ Р°СЂС…РёРІРµ РјРѕР¶РµС‚ РЅРµ Р±С‹С‚СЊ РїР°РїРєРё resource\qwe_crafter (С„РѕСЂСѓРјС‹ РЅРµ РїСѓСЃРєР°СЋС‚ Р±РѕР»СЊС€РёРµ Р°СЂС…РёРІС‹).
--- РџСЂРё РїРµСЂРІРѕРј Р·Р°РїСѓСЃРєРµ Р·Р°РіСЂСѓР·С‡РёРє СЃР°Рј СЃРєР°С‡РёРІР°РµС‚ РЅРµРґРѕСЃС‚Р°СЋС‰РёРµ РёРєРѕРЅРєРё Рё names.txt.
--- РљРѕРіРґР° РІСЃС‘ РЅР° РјРµСЃС‚Рµ, РїРёС€РµС‚ РјРµС‚РєСѓ icons.ok Рё Р±РѕР»СЊС€Рµ СЃРµС‚СЊ РЅРµ С‚СЂРѕРіР°РµС‚.
+-- ============== ресурсы: иконки и названия докачиваются с GitHub ==============
+-- В архиве может не быть папки resource\qwe_crafter (форумы не пускают большие архивы).
+-- При первом запуске загрузчик сам скачивает недостающие иконки и names.txt.
+-- Когда всё на месте, пишет метку icons.ok и больше сеть не трогает.
 local RES   = dir .. '\\resource\\qwe_crafter'
 local ICONS = RES .. '\\icons'
 local OKF   = RES .. '\\icons.ok'
@@ -86,8 +92,8 @@ local function isPng(p)
 	return s and #s > 60 and s:sub(1, 8) == '\137PNG\r\n\26\n'
 end
 
--- РќР°С‡Р°С‚СЊ Р·Р°РіСЂСѓР·РєСѓ. РљРѕР»Р±СЌРє С‚РѕР»СЊРєРѕ СЃС‚Р°РІРёС‚ С„Р»Р°Рі (РЅРѕРІСѓСЋ Р·Р°РіСЂСѓР·РєСѓ РёР· РєРѕР»Р±СЌРєР° Р·Р°РїСѓСЃРєР°С‚СЊ РЅРµР»СЊР·СЏ).
--- 404 Сѓ Windows РїСЂРёС…РѕРґРёС‚ РєР°Рє STATUSEX_ENDDOWNLOAD Р±РµР· STATUS_ENDDOWNLOADDATA.
+-- Начать загрузку. Колбэк только ставит флаг (новую загрузку из колбэка запускать нельзя).
+-- 404 у Windows приходит как STATUSEX_ENDDOWNLOAD без STATUS_ENDDOWNLOADDATA.
 local function start(url, path)
 	local job = { done = false, at = os.clock() }
 	downloadUrlToFile(url, path, function(_, st)
@@ -95,7 +101,7 @@ local function start(url, path)
 	end)
 	return job
 end
--- СЃРєР°С‡Р°С‚СЊ Рё РґРѕР¶РґР°С‚СЊСЃСЏ (С‚РѕР»СЊРєРѕ РІРЅСѓС‚СЂРё РїРѕС‚РѕРєР°); РІРµСЂРЅС‘С‚ С‚РµРєСЃС‚ С„Р°Р№Р»Р° РёР»Рё nil
+-- скачать и дождаться (только внутри потока); вернёт текст файла или nil
 local function get(url, path, timeout)
 	local job = start(url, path)
 	while not job.done and os.clock() - job.at < (timeout or 20) do wait(100) end
@@ -104,7 +110,7 @@ local function get(url, path, timeout)
 	return job.done and s or nil
 end
 
--- СЃРїРёСЃРѕРє id: icons.txt РІ СЂРµРїРѕ, Р·Р°РїР°СЃРЅРѕР№ РїСѓС‚СЊ вЂ” РґРµСЂРµРІРѕ СЂРµРїРѕ С‡РµСЂРµР· API GitHub
+-- список id: icons.txt в репо, запасной путь — дерево репо через API GitHub
 local function fetchList()
 	local tmp = RES .. '\\icons.list.tmp'
 	local s = get(REPO_RAW .. 'moonloader/resource/qwe_crafter/icons.txt?t=' .. os.time(), tmp) or ''
@@ -130,7 +136,7 @@ local function iconsFetch(manual)
 	local ids = fetchList()
 	if #ids == 0 then I.state = 'neterr'; print('[QWE Crafter loader] icons: no list (network?)'); return end
 
-	-- РЅР°Р·РІР°РЅРёСЏ РїСЂРµРґРјРµС‚РѕРІ (РґР»СЏ С‚РµС…, Сѓ РєРѕРіРѕ РЅРµС‚ QWE Trader)
+	-- названия предметов (для тех, у кого нет QWE Trader)
 	local NAMES = RES .. '\\names.txt'
 	if not exists(NAMES) then
 		local s = get(REPO_RAW .. 'moonloader/resource/qwe_crafter/names.txt?t=' .. os.time(), NAMES .. '.tmp')
@@ -146,7 +152,7 @@ local function iconsFetch(manual)
 	print(('[QWE Crafter loader] downloading %d icons...'):format(#need))
 	I.state = 'loading'
 
-	-- РїРѕ 8 С„Р°Р№Р»РѕРІ РѕРґРЅРѕРІСЂРµРјРµРЅРЅРѕ; С„Р°Р№Р» СЃРЅР°С‡Р°Р»Р° РІРѕ .tmp, РїРѕС‚РѕРј РїСЂРѕРІРµСЂРєР° PNG
+	-- по 8 файлов одновременно; файл сначала во .tmp, потом проверка PNG
 	local jobs, pos, tries, lastGen = {}, 1, {}, os.clock()
 	while pos <= #need or #jobs > 0 do
 		while #jobs < 8 and pos <= #need do
@@ -173,20 +179,20 @@ local function iconsFetch(manual)
 				end
 			end
 		end
-		-- СЏРґСЂРѕ РїРµСЂРµС‡РёС‚С‹РІР°РµС‚ РёРєРѕРЅРєРё РїСЂРёРјРµСЂРЅРѕ СЂР°Р· РІ СЃРµРєСѓРЅРґСѓ
+		-- ядро перечитывает иконки примерно раз в секунду
 		if os.clock() - lastGen > 1 then I.gen = I.gen + 1; lastGen = os.clock() end
 	end
 	I.gen = I.gen + 1
 	if I.failed == 0 then
 		writeFile(OKF, tostring(#ids)); I.state = 'ok'
 	else
-		I.state = 'partial' -- РїСЂРё СЃР»РµРґСѓСЋС‰РµРј Р·Р°РїСѓСЃРєРµ РґРѕРєР°С‡Р°РµС‚ РѕСЃС‚Р°С‚РѕРє
+		I.state = 'partial' -- при следующем запуске докачает остаток
 	end
 	print(('[QWE Crafter loader] icons: %d ok, %d failed'):format(I.done, I.failed))
 end
 
--- РєРЅРѕРїРєР° В«РЎРєР°С‡Р°С‚СЊ РёРєРѕРЅРєРёВ» РІ РЅР°СЃС‚СЂРѕР№РєР°С… СЏРґСЂР°: РїСЂРѕРІРµСЂРёС‚СЊ РІСЃРµ РёРєРѕРЅРєРё Р·Р°РЅРѕРІРѕ Рё РґРѕРєР°С‡Р°С‚СЊ РЅРµРґРѕСЃС‚Р°СЋС‰РёРµ/Р±РёС‚С‹Рµ
--- (РІС‹Р·С‹РІР°С‚СЊ РёР· РїРѕС‚РѕРєР°, РЅРµ РёР· РєРѕР»Р±СЌРєР° Р·Р°РіСЂСѓР·РєРё)
+-- кнопка «Скачать иконки» в настройках ядра: проверить все иконки заново и докачать недостающие/битые
+-- (вызывать из потока, не из колбэка загрузки)
 function UPD.iconsStart()
 	local s = UPD.icons.state
 	if s == 'list' or s == 'loading' then return false end
@@ -196,16 +202,16 @@ function UPD.iconsStart()
 	return true
 end
 
--- ============================ Р·Р°РїСѓСЃРє ============================
+-- ============================ запуск ============================
 local chunk, srcChunk
 
--- DEV: РµСЃС‚СЊ РёСЃС…РѕРґРЅРёРє вЂ” РєРѕРјРїРёР»РёСЂСѓРµРј РµРіРѕ РІ СѓСЂРµР·Р°РЅРЅС‹Р№ Р±Р°Р№С‚РєРѕРґ Рё РїРµСЂРµР·Р°РїРёСЃС‹РІР°РµРј .dat
+-- DEV: есть исходник — компилируем его в урезанный байткод и перезаписываем .dat
 local code = readFile(SRC)
 if code then
 	local c, err = loadstring(code, '@qwe_crafter_core')
 	if not c then print('[QWE Crafter loader] source compile error: ' .. tostring(err)); return end
 	srcChunk = c
-	local ok, bc = pcall(string.dump, c, true) -- true = СѓР±СЂР°С‚СЊ РѕС‚Р»Р°РґРѕС‡РЅСѓСЋ РёРЅС„РѕСЂРјР°С†РёСЋ
+	local ok, bc = pcall(string.dump, c, true) -- true = убрать отладочную информацию
 	if ok and type(bc) == 'string' and #bc > 0 then
 		writeFile(DAT, bc)
 	else
@@ -221,7 +227,7 @@ elseif srcChunk then
 	print('[QWE Crafter loader] bytecode did not load (' .. tostring(err) .. '), running from source')
 	chunk = srcChunk
 else
-	-- РќРµС‚ РЅРё РёСЃС…РѕРґРЅРёРєР°, РЅРё СЏРґСЂР° (РїРѕСЃС‚Р°РІРёР»Рё С‚РѕР»СЊРєРѕ Р·Р°РіСЂСѓР·С‡РёРє): РѕРґРёРЅ СЂР°Р· СЃРєР°С‡РёРІР°РµРј СЏРґСЂРѕ СЃ GitHub.
+	-- Нет ни исходника, ни ядра (поставили только загрузчик): один раз скачиваем ядро с GitHub.
 	print('[QWE Crafter loader] core not found, downloading from GitHub...')
 	UPD.busy = true; setStatus('updating')
 	function main()
@@ -239,7 +245,7 @@ end
 
 chunk()
 
--- Р·Р°РїСѓСЃРєР°РµРј РґРѕРєР°С‡РєСѓ СЂРµСЃСѓСЂСЃРѕРІ СЂСЏРґРѕРј СЃ main() СЏРґСЂР°
+-- запускаем докачку ресурсов рядом с main() ядра
 local coreMain = main
 function main()
 	lua_thread.create(iconsFetch)

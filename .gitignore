@@ -1,0 +1,20 @@
+# исходники и сборка — не публикуем
+src/
+build.sh
+qwe_crafter_core.src
+*.src
+*.bak
+*.devbak
+FORMAT.md
+_probe/
+/icons/
+QWE CraftLog.lua
+# данные игрока — НИКОГДА не в репо
+config/
+*.json.bak
+qwe_crafter_core.dat.new
+# корневой .dat и старый одиночный скрипт
+/qwe_crafter_core.dat
+/QWE Crafter.lua
+*.zip
+__pycache__/

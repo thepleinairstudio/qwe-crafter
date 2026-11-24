@@ -72,6 +72,130 @@ function UPD.check(manual, curVer)
 	end)
 end
 
+-- ============== ресурсы: иконки и названия докачиваются с GitHub ==============
+-- В архиве может не быть папки resource\qwe_crafter (форумы не пускают большие архивы).
+-- При первом запуске загрузчик сам скачивает недостающие иконки и names.txt.
+-- Когда всё на месте, пишет метку icons.ok и больше сеть не трогает.
+local RES   = dir .. '\\resource\\qwe_crafter'
+local ICONS = RES .. '\\icons'
+local OKF   = RES .. '\\icons.ok'
+UPD.icons = { state = 'idle', done = 0, total = 0, failed = 0, gen = 0 }
+
+local function isPng(p)
+	local s = readFile(p)
+	return s and #s > 60 and s:sub(1, 8) == '\137PNG\r\n\26\n'
+end
+
+-- Начать загрузку. Колбэк только ставит флаг (новую загрузку из колбэка запускать нельзя).
+-- 404 у Windows приходит как STATUSEX_ENDDOWNLOAD без STATUS_ENDDOWNLOADDATA.
+local function start(url, path)
+	local job = { done = false, at = os.clock() }
+	downloadUrlToFile(url, path, function(_, st)
+		if st == dlstatus.STATUS_ENDDOWNLOADDATA or st == dlstatus.STATUSEX_ENDDOWNLOAD then job.done = true end
+	end)
+	return job
+end
+-- скачать и дождаться (только внутри потока); вернёт текст файла или nil
+local function get(url, path, timeout)
+	local job = start(url, path)
+	while not job.done and os.clock() - job.at < (timeout or 20) do wait(100) end
+	wait(100)
+	local s = readFile(path); os.remove(path)
+	return job.done and s or nil
+end
+
+-- список id: icons.txt в репо, запасной путь — дерево репо через API GitHub
+local function fetchList()
+	local tmp = RES .. '\\icons.list.tmp'
+	local s = get(REPO_RAW .. 'moonloader/resource/qwe_crafter/icons.txt?t=' .. os.time(), tmp) or ''
+	local ids = {}
+	for line in s:gmatch('[^\r\n]+') do
+		if line:match('^%d+$') then ids[#ids + 1] = line else ids = {}; break end
+	end
+	if #ids >= 10 then return ids end
+	local s2 = get('https://api.github.com/repos/thepleinairstudio/qwe-crafter/git/trees/main?recursive=1', tmp, 30) or ''
+	ids = {}
+	for id in s2:gmatch('moonloader/resource/qwe_crafter/icons/(%d+)%.png') do ids[#ids + 1] = id end
+	return ids
+end
+
+local function iconsFetch(manual)
+	if not manual then
+		if exists(OKF) then return end
+		wait(2000)
+	end
+	if not doesDirectoryExist(ICONS) then createDirectory(ICONS) end
+	local I = UPD.icons
+	I.state, I.manual = 'list', manual and true or nil
+	local ids = fetchList()
+	if #ids == 0 then I.state = 'neterr'; print('[QWE Crafter loader] icons: no list (network?)'); return end
+
+	-- названия предметов (для тех, у кого нет QWE Trader)
+	local NAMES = RES .. '\\names.txt'
+	if not exists(NAMES) then
+		local s = get(REPO_RAW .. 'moonloader/resource/qwe_crafter/names.txt?t=' .. os.time(), NAMES .. '.tmp')
+		if s and s:find('%d+=') and not s:find('<html') then writeFile(NAMES, s); I.gen = I.gen + 1 end
+	end
+
+	local need = {}
+	for _, id in ipairs(ids) do
+		if not isPng(ICONS .. '\\' .. id .. '.png') then need[#need + 1] = id end
+	end
+	I.total, I.done, I.failed = #need, 0, 0
+	if #need == 0 then writeFile(OKF, tostring(#ids)); I.state = 'ok'; return end
+	print(('[QWE Crafter loader] downloading %d icons...'):format(#need))
+	I.state = 'loading'
+
+	-- по 8 файлов одновременно; файл сначала во .tmp, потом проверка PNG
+	local jobs, pos, tries, lastGen = {}, 1, {}, os.clock()
+	while pos <= #need or #jobs > 0 do
+		while #jobs < 8 and pos <= #need do
+			local id = need[pos]; pos = pos + 1
+			tries[id] = (tries[id] or 0) + 1
+			local dst = ICONS .. '\\' .. id .. '.png'
+			local j = start(REPO_RAW .. 'moonloader/resource/qwe_crafter/icons/' .. id .. '.png', dst .. '.tmp')
+			j.id, j.dst = id, dst
+			jobs[#jobs + 1] = j
+		end
+		wait(50)
+		for k = #jobs, 1, -1 do
+			local j = jobs[k]
+			local late = os.clock() - j.at > 20
+			if j.done or late then
+				table.remove(jobs, k)
+				local tmp = j.dst .. '.tmp'
+				if j.done and isPng(tmp) then
+					os.remove(j.dst); os.rename(tmp, j.dst)
+					I.done = I.done + 1
+				else
+					os.remove(tmp)
+					if tries[j.id] < 3 then need[#need + 1] = j.id else I.failed = I.failed + 1 end
+				end
+			end
+		end
+		-- ядро перечитывает иконки примерно раз в секунду
+		if os.clock() - lastGen > 1 then I.gen = I.gen + 1; lastGen = os.clock() end
+	end
+	I.gen = I.gen + 1
+	if I.failed == 0 then
+		writeFile(OKF, tostring(#ids)); I.state = 'ok'
+	else
+		I.state = 'partial' -- при следующем запуске докачает остаток
+	end
+	print(('[QWE Crafter loader] icons: %d ok, %d failed'):format(I.done, I.failed))
+end
+
+-- кнопка «Скачать иконки» в настройках ядра: проверить все иконки заново и докачать недостающие/битые
+-- (вызывать из потока, не из колбэка загрузки)
+function UPD.iconsStart()
+	local s = UPD.icons.state
+	if s == 'list' or s == 'loading' then return false end
+	os.remove(OKF)
+	UPD.icons.state = 'list'
+	lua_thread.create(iconsFetch, true)
+	return true
+end
+
 -- ============================ запуск ============================
 local chunk, srcChunk
 
@@ -114,3 +238,11 @@ else
 end
 
 chunk()
+
+-- запускаем докачку ресурсов рядом с main() ядра
+local coreMain = main
+function main()
+	lua_thread.create(iconsFetch)
+	if coreMain then return coreMain() end
+	while true do wait(1000) end
+end
